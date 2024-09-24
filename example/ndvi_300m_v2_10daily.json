@@ -1,0 +1,45 @@
+{
+    "logFile": false,
+    "tmpFolder": "/tmp/netcdf2cog",
+    "overwriteExistingFiles": false,
+    "hasTimeIndex": false,
+    "compressionMethod": "DEFLATE",
+    "cogOverviews": [4, 8, 16, 32],
+    "blockSize": 512,
+    "attributeConversion": {
+        "history": "<processDateISO>: COG Processor version <version>",
+        "listEnclosure": "{}",
+        "listSeparator": ", ",
+        "removeAttributeLst": [
+            "_FillValue",
+            "add_offset",
+            "scale_factor"
+        ]
+    },
+    "bandInfoList": [
+        {
+            "inBand": "NDVI",
+            "outBand": "",
+            "description": "Normalized Difference Vegetation Index",
+            "resampleMethod": "nearest"
+        },
+        {
+            "inBand": "NDVI_unc",
+            "outBand": "UNC",
+            "description": "Uncertainty on Normalized Difference Vegetation Index",
+            "resampleMethod": "nearest"
+        },
+        {
+            "inBand": "NOBS",
+            "outBand": "",
+            "description": "Number of observation",
+            "resampleMethod": "nearest"
+        },
+        {
+            "inBand": "QFLAG",
+            "outBand": "",
+            "description": "Quality Flag on Normalized Difference Vegetation Index",
+            "resampleMethod": "nearest"
+        }
+    ]
+}
