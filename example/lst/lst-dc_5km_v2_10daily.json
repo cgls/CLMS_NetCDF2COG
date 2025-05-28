@@ -1,0 +1,195 @@
+{
+    "overwriteExistingFiles": false,
+    "hasTimeIndex": false,
+    "compressionMethod": "DEFLATE",
+    "cogOverviews": [4, 8, 16, 32],
+    "blockSize": 512,
+    "attributeConversion": {
+        "history": "<processDateISO>: COG Processor version <version>",
+        "listEnclosure": "{}",
+        "listSeparator": ", ",
+        "removeAttributeLst": [
+            "_FillValue",
+            "add_offset",
+            "scale_factor"
+        ]
+    },
+    "bandInfoList": [
+        {
+            "inBand": "MIN",
+            "outBand": "",
+            "description": "Minimum on Land Surface Temperature",
+            "resampleMethod": "nearest",
+            "timeDimensionInfoList": [
+                {
+                    "productTime": "0000",
+                    "timeBandIndexList": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                    "timeBandDescriptionList": [
+                        "Minimum at 0 hr on Land Surface Temperature",
+                        "Minimum at 1 hr on Land Surface Temperature",
+                        "Minimum at 2 hr on Land Surface Temperature",
+                        "Minimum at 3 hr on Land Surface Temperature",
+                        "Minimum at 4 hr on Land Surface Temperature",
+                        "Minimum at 5 hr on Land Surface Temperature",
+                        "Minimum at 6 hr on Land Surface Temperature",
+                        "Minimum at 7 hr on Land Surface Temperature",
+                        "Minimum at 8 hr on Land Surface Temperature",
+                        "Minimum at 9 hr on Land Surface Temperature",
+                        "Minimum at 10 hr on Land Surface Temperature",
+                        "Minimum at 11 hr on Land Surface Temperature"
+                    ]
+                },
+                {
+                    "productTime": "1200",
+                    "timeBandIndexList": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                    "timeBandDescriptionList": [
+                        "Minimum at 12 hr on Land Surface Temperature",
+                        "Minimum at 13 hr on Land Surface Temperature",
+                        "Minimum at 14 hr on Land Surface Temperature",
+                        "Minimum at 15 hr on Land Surface Temperature",
+                        "Minimum at 16 hr on Land Surface Temperature",
+                        "Minimum at 17 hr on Land Surface Temperature",
+                        "Minimum at 18 hr on Land Surface Temperature",
+                        "Minimum at 19 hr on Land Surface Temperature",
+                        "Minimum at 20 hr on Land Surface Temperature",
+                        "Minimum at 21 hr on Land Surface Temperature",
+                        "Minimum at 22 hr on Land Surface Temperature",
+                        "Minimum at 23 hr on Land Surface Temperature"
+                    ]
+                }
+            ]
+        },
+        {
+            "inBand": "MAX",
+            "outBand": "",
+            "description": "Maximum on Land Surface Temperature",
+            "resampleMethod": "nearest",
+            "timeDimensionInfoList": [
+                {
+                    "productTime": "0000",
+                    "timeBandIndexList": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                    "timeBandDescriptionList": [
+                        "Maximum at 0 hr on Land Surface Temperature",
+                        "Maximum at 1 hr on Land Surface Temperature",
+                        "Maximum at 2 hr on Land Surface Temperature",
+                        "Maximum at 3 hr on Land Surface Temperature",
+                        "Maximum at 4 hr on Land Surface Temperature",
+                        "Maximum at 5 hr on Land Surface Temperature",
+                        "Maximum at 6 hr on Land Surface Temperature",
+                        "Maximum at 7 hr on Land Surface Temperature",
+                        "Maximum at 8 hr on Land Surface Temperature",
+                        "Maximum at 9 hr on Land Surface Temperature",
+                        "Maximum at 10 hr on Land Surface Temperature",
+                        "Maximum at 11 hr on Land Surface Temperature"
+                    ]
+                },
+                {
+                    "productTime": "1200",
+                    "timeBandIndexList": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                    "timeBandDescriptionList": [
+                        "Maximum at 12 hr on Land Surface Temperature",
+                        "Maximum at 13 hr on Land Surface Temperature",
+                        "Maximum at 14 hr on Land Surface Temperature",
+                        "Maximum at 15 hr on Land Surface Temperature",
+                        "Maximum at 16 hr on Land Surface Temperature",
+                        "Maximum at 17 hr on Land Surface Temperature",
+                        "Maximum at 18 hr on Land Surface Temperature",
+                        "Maximum at 19 hr on Land Surface Temperature",
+                        "Maximum at 20 hr on Land Surface Temperature",
+                        "Maximum at 21 hr on Land Surface Temperature",
+                        "Maximum at 22 hr on Land Surface Temperature",
+                        "Maximum at 23 hr on Land Surface Temperature"
+                    ]
+                }
+            ]
+        },
+        {
+            "inBand": "MEDIAN",
+            "outBand": "",
+            "description": "Median on Land Surface Temperature",
+            "resampleMethod": "nearest",
+            "timeDimensionInfoList": [
+                {
+                    "productTime": "0000",
+                    "timeBandIndexList": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                    "timeBandDescriptionList": [
+                        "Median at 0 hr on Land Surface Temperature",
+                        "Median at 1 hr on Land Surface Temperature",
+                        "Median at 2 hr on Land Surface Temperature",
+                        "Median at 3 hr on Land Surface Temperature",
+                        "Median at 4 hr on Land Surface Temperature",
+                        "Median at 5 hr on Land Surface Temperature",
+                        "Median at 6 hr on Land Surface Temperature",
+                        "Median at 7 hr on Land Surface Temperature",
+                        "Median at 8 hr on Land Surface Temperature",
+                        "Median at 9 hr on Land Surface Temperature",
+                        "Median at 10 hr on Land Surface Temperature",
+                        "Median at 11 hr on Land Surface Temperature"
+                    ]
+                },
+                {
+                    "productTime": "1200",
+                    "timeBandIndexList": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                    "timeBandDescriptionList": [
+                        "Median at 12 hr on Land Surface Temperature",
+                        "Median at 13 hr on Land Surface Temperature",
+                        "Median at 14 hr on Land Surface Temperature",
+                        "Median at 15 hr on Land Surface Temperature",
+                        "Median at 16 hr on Land Surface Temperature",
+                        "Median at 17 hr on Land Surface Temperature",
+                        "Median at 18 hr on Land Surface Temperature",
+                        "Median at 19 hr on Land Surface Temperature",
+                        "Median at 20 hr on Land Surface Temperature",
+                        "Median at 21 hr on Land Surface Temperature",
+                        "Median at 22 hr on Land Surface Temperature",
+                        "Median at 23 hr on Land Surface Temperature"
+                    ]
+                }
+            ]
+        },
+        {
+            "inBand": "FRAC_VALID_OBS",
+            "outBand": "FOBS",
+            "description": "Fraction of valid observations",
+            "resampleMethod": "nearest",
+            "timeDimensionInfoList": [
+                {
+                    "productTime": "0000",
+                    "timeBandIndexList": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                    "timeBandDescriptionList": [
+                        "Fraction of valid observations at 0 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 1 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 2 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 3 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 4 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 5 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 6 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 7 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 8 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 9 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 10 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 11 hr on Land Surface Temperature"
+                    ]
+                },
+                {
+                    "productTime": "1200",
+                    "timeBandIndexList": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                    "timeBandDescriptionList": [
+                        "Fraction of valid observations at 12 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 13 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 14 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 15 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 16 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 17 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 18 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 19 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 20 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 21 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 22 hr on Land Surface Temperature",
+                        "Fraction of valid observations at 23 hr on Land Surface Temperature"
+                    ]
+                }
+            ]
+        }
+    ]
+}

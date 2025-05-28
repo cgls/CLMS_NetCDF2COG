@@ -13,15 +13,31 @@ Documented with Sphinx in numpy style:
  #. https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html
  #. https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard
  
+Usage
+-----
+cogProcessor.py [-h] -c CFGFILE -i INFILE -o OUTFOLDER [-t TMPFOLDER] [-l LOGFILE] [-q | -v]
+
 Parameters
 ----------
--c, --cfgFile : str
+-c, --cfgFile
     Full path to json configuration file
 -i, --inFile
     Full path to NetCDF input file
 -o, --outFolder
     Full path to output folder in which the COG's will be stored
- 
+-h, --help
+    Show this help message and exit
+-t, --tmpFolder
+    Optional full path to folder to store temporary files created during COG generation. Overrules the one
+    specified in the configuration file. If none tmpFolder is specified, the systems defaults will be used
+-l, --logFile LOGFILE
+    Optional log file
+-q, --quiet
+    Suppress all output except warnings and errors
+ -v, --verbose 
+    Verbose output
+
+     
 Returns
 -------
 int
@@ -32,23 +48,28 @@ Example
 -------
 The script can be called as follows:
     $ python cogProcessor.py --cfgFile ndvi300_v2_cog.json -i c_gls_NDVI300_202404010000_GLOBE_OLCI_V2.0.1.nc -o ~/cog/ndvi300_v2/
+    $ python cogProcessor.py --cfgFile lst5km-dc_v2_cog.json -i https://globalland.vito.be/download/netcdf/land_surface_temperature/lst_5km_v2_10daily-daily-cycle/2025/20250511/c_gls_LST10-DC_202505110000_GLOBE_GEO_V2.1.1.nc
+ -o ~/cog/lst5km_dc/
  
 """
 __label__ = 'CLMS_NetCDF2COG'
-__version__ = '1.0.0'
-__date__ = '20240904'
+__version__ = '1.1.1'
+__date__ = '20250527'
 
 # Regular imports
 import os
-import time 
-import numpy
-import shutil
 import random
+import shutil
 import subprocess
-import netCDF4 as nc
-from osgeo import gdal
+import tempfile
+import time
+import urllib.request
 from datetime import datetime
 from time import strftime, strptime
+
+import netCDF4 as nc
+import numpy
+from osgeo import gdal
 
 
 def cogProcessor(cogCfgDict, logger = print):
@@ -67,121 +88,191 @@ def cogProcessor(cogCfgDict, logger = print):
     ----------
     cogCfgDict : dict
         configuration dictionary which should contain the following keys:
-        * 'logFile': (str) Full path to log file. Set to None or false if no log file is required
-        * 'tmpFolder': (str) Path to folder to store temporary files created during COG generation
-        * 'outFolder':(str) Path to folder for COG output files
-        * 'inFile': (str) Full path to NetCDF input file
-        * 'hasTimeIndex': (bool) Flag to indicate product name contains a time index (e.g. RT0 or SE1)
-        * 'overwriteExistingFiles': (bool) Overwrite existing output files
+        * 'tmpFolder': (str) path to folder to store temporary files created during COG generation. If set to None of false, the systems default temp location will be used
+        * 'outFolder':(str) path to folder for COG output files
+        * 'inFile': (str) full path to NetCDF input file
+        * 'hasTimeIndex': (bool) flag to indicate product name contains a time index (e.g. RT0 or SE1)
+        * 'overwriteExistingFiles': (bool) Ooerwrite existing output files
         * 'compressionMethod': (str) compression method used, see gdal_translate for more information
         * 'cogOverviews': (list of int) COG overview list, set None or empty list to skip overviews
         * 'blockSize': (int) blockSize of COG overviews
+        * ('bigtiff'): (bool) optional, create big tiff (+4 GB). If not set, defaults to normal tiffs
         * 'attributeConversion': (dict) NetCDF attributes to COG metadata conversion settings containing:
             * 'history': (str) string to be added to history, can contain the replacement variable <processDateISO> and <version>
             * 'listEnclosure': (str) unpack numeric list attributes into a string between the two elements. If an empty string is given, no enclosure is added.
-            * 'listSeparator': (str) seprated to be added to each numeric list element when converting to a string
+            * 'listSeparator': (str) separated to be added to each numeric list element when converting to a string
             * 'removeAttributeLst': (list of str) attributes keys that will not be converted to metadata
-        * 'bandInfoList': (list of dict) A list of dictionaries (on for each band) that contains:
+        * 'bandInfoList': (list of dict) a list of dictionaries (one for each band) that contains:
             * 'inBand': (str) band name of input file
-            * 'outBand': (str) optional band id in output file, omit or None to use inBand
+            * ('outBand'): (str) optional band id in output file, empty string or False to use inBand. If omitted from bandInfoList, the band will not be added to the base filename
+            * ('outBandType'): (str) optional band output type (use GDAL types)
             * 'resampleMethod': (str) resample method used for COG overviews, see gdaladdo for more information
+            * 'description': (str) band description to be added to the COG
+            * ('timeDimensionInfo'): (dict) optional, a dictionary to specify how to split multi-time dimension layers in the NetCDF file, containing:
+                * 'productTime': (str) the correct time elements for the product date, expressed in <HHMM> format
+                * 'timeBandIndexList': (list of int) the band index the group
+                * 'timeBandDescriptionList': (list of strings) band description for the multiple time bands to be added to the COG, overrules the overal 'description' parameter in the bandInfoDict.
     logger : object
         Instance to log to, defaults to print
     """
-    logger('COG Processing kernel')
+    logger("COG Processing kernel")
+    tmpFolder = None
     gdal.UseExceptions() # To prevent future warning
 
-    # Create output folder
-    logger(f' > Verifying output folder {cogCfgDict["outFolder"]}')
-    if not os.path.isdir(cogCfgDict['outFolder']):
-        _safeMakeDirs(cogCfgDict['outFolder'], mode=0o775)
-        logger('   > Created')
-    else:
-        logger('   > Existing')
+    try:
+        # Create output folder
+        logger(f" > Verifying output folder {cogCfgDict['outFolder']}")
+        if not os.path.isdir(cogCfgDict['outFolder']):
+            _safeMakeDirs(cogCfgDict['outFolder'], mode=0o775)
+            logger('   > Created')
+        else:
+            logger('   > Existing')
 
-    # Create tmp folder
-    logger(f' > Verifying temporary working folder {cogCfgDict["tmpFolder"]}')
-    if not os.path.isdir(cogCfgDict['tmpFolder']):
-        _safeMakeDirs(cogCfgDict['tmpFolder'], mode=0o775)
-        logger('   > Created')
-    else:
-        logger('   > Existing')
+        # Create tmp folder
+        logger(" > Setting up temporary working folder")
+        if cogCfgDict['tmpFolder']:
+            if not os.path.isdir(cogCfgDict['tmpFolder']):
+                _safeMakeDirs(cogCfgDict['tmpFolder'], mode=0o775)
+            logger(f"   > Created base temporary folder {cogCfgDict['tmpFolder']}")
+        tmpFolder = tempfile.TemporaryDirectory(dir=cogCfgDict['tmpFolder'])
+        logger(f"   > Temporary folder: {tmpFolder.name}")
+        cogCfgDict['tmpFolder'] = tmpFolder.name
 
-    logger(f' > Extracting attributes from input file {cogCfgDict["inFile"]}')
-    with nc.Dataset(cogCfgDict["inFile"], 'r') as src:
-        attributeDict = src.__dict__
-        bandLst = list(src.variables.keys())
-        # check if the file has all bands to be converted
-        for bandInfo in cogCfgDict['bandInfoList']:
-            if bandInfo['inBand'] in bandLst:
-                bandInfo['attributes'] = src.variables[bandInfo['inBand']].__dict__
+        # support for url's
+        dwnldFile = None
+        checkForUrlParts = cogCfgDict["inFile"].split(':')
+        if len(checkForUrlParts) > 1:  # there was a ':' in the file path
+            if checkForUrlParts[0] in ['http', 'https']:
+                dwnldFile = os.path.join(
+                    cogCfgDict['tmpFolder'], os.path.basename(cogCfgDict["inFile"])
+                )
+                logger(f' > Downloading {cogCfgDict["inFile"]} to {dwnldFile}')
+                urllib.request.urlretrieve(cogCfgDict["inFile"], dwnldFile)
+                cogCfgDict["inFile"] = dwnldFile
             else:
-                raise ValueError(f'{bandInfo["inBand"]} not found in {cogCfgDict["inFile"]}:{bandLst}')
+                raise NotImplementedError(f"{checkForUrlParts[0]} protocol not implemented")
+        logger(f' > Extracting attributes from input file {cogCfgDict["inFile"]}')
+        with nc.Dataset(cogCfgDict["inFile"], 'r') as src:
+            attributeDict = src.__dict__
+            bandLst = list(src.variables.keys())
+            # check if the file has all bands to be converted
+            for bandInfo in cogCfgDict['bandInfoList']:
+                if bandInfo['inBand'] in bandLst:
+                    bandInfo['attributes'] = src.variables[bandInfo['inBand']].__dict__
+                else:
+                    raise ValueError(f'{bandInfo["inBand"]} not found in {cogCfgDict["inFile"]}:{bandLst}')
 
-    tempFileList = []
-    logger(f' > Creating {len(cogCfgDict["bandInfoList"])} COG file(s)')
-    for index, bandInfo in enumerate(cogCfgDict['bandInfoList']):
-        srcPath = f'NETCDF:"{cogCfgDict["inFile"]}":{bandInfo["inBand"]}'
+        nrCogFiles = 0
+        for bandInfo in cogCfgDict['bandInfoList']:
+            if 'timeDimensionInfoList' in bandInfo:
+                nrCogFiles += len(bandInfo['timeDimensionInfoList'])
+            else:
+                nrCogFiles += 1
+        logger(f' > Creating {nrCogFiles} COG file(s)') 
 
-        cogFile = createCogFileName(os.path.basename(cogCfgDict['inFile']),
-                                    bandInfo['inBand'],
-                                    bandInfo['outBand'], 
-                                    cogCfgDict['hasTimeIndex'])
+        fileNr = 1
+        for bandInfo in cogCfgDict['bandInfoList']:
+            srcPath = f'NETCDF:"{cogCfgDict["inFile"]}":{bandInfo["inBand"]}'
 
-        cogPath = os.path.join(cogCfgDict["outFolder"], cogFile)
-        tempBasePath = os.path.join(cogCfgDict["tmpFolder"], os.path.splitext(cogFile)[0])
-        logger(f'   > {index+1:>2}/{len(cogCfgDict["bandInfoList"])}: {cogFile}')
-        if not cogCfgDict['overwriteExistingFiles'] and os.path.isfile(cogPath):
-            logger('     > Skipped: file already exists')
-            continue
-        logger('     > Creating GeoTiff base image')
-        tiffFile = tempBasePath + '_base.tiff'
-        tempFileList.append(tiffFile)
+            if 'outBand' not in bandInfo:
+                cogFile = os.path.basename(cogCfgDict['inFile'])
+                cogFile = f'{os.path.splitext(cogFile)[0]}.tiff'
+            else:
+                cogFile = createCogFileName(
+                    os.path.basename(cogCfgDict['inFile']),
+                    bandInfo['inBand'],
+                    bandInfo['outBand'],
+                    cogCfgDict['hasTimeIndex'],
+                )
+            
+            if not 'timeDimensionInfoList' in bandInfo:
+                bandInfo['timeDimensionInfoList'] = [None]
+            for timeDimensionInfo in bandInfo['timeDimensionInfoList']:
+                tempFileList = []
+                if timeDimensionInfo:
+                    cogFile = updateProductDate(cogFile, timeDimensionInfo['productTime'])
+       
+                cogPath = os.path.join(cogCfgDict["outFolder"], cogFile)
+                tempBasePath = os.path.join(cogCfgDict["tmpFolder"], os.path.splitext(cogFile)[0])
+                logger(f'   > {fileNr:>2}/{nrCogFiles}: {cogFile}')
+                if not cogCfgDict['overwriteExistingFiles'] and os.path.isfile(cogPath):
+                    logger('     > Skipped: file already exists')
+                    continue
+                logger('     > Creating GeoTiff base image')
+                tiffFile = tempBasePath + '_base.tiff'
+                tempFileList.append(tiffFile)
 
-        cmd = f'gdal_translate -of GTIFF {srcPath} {tiffFile}'
+                cmd = f'gdal_translate -of GTIFF --config GDAL_CACHEMAX 265 '
+                cmd += f'-co COMPRESS={cogCfgDict["compressionMethod"]} '
+                cmd += f'-co TILED=YES -co BLOCKXSIZE={cogCfgDict["blockSize"]} -co BLOCKYSIZE={cogCfgDict["blockSize"]} '
+                if 'outBandType' in bandInfo:
+                    cmd += f' -ot {bandInfo["outBandType"]} '
+                if timeDimensionInfo:
+                    for timeBandIndex in timeDimensionInfo['timeBandIndexList']:
+                        cmd +=f'-b {timeBandIndex} '
+                cmd += f'{srcPath} {tiffFile}'
 
-        logger(f'     > execute command: {cmd}')
-        _runShellCmd(cmd, logger)
+                logger(f'     > execute command: {cmd}')
+                _runShellCmd(cmd, logger)
 
-        if cogCfgDict["cogOverviews"]:
-            logger('     > Adding overviews')
-            cmd = f'gdaladdo -clean  {tiffFile}'
-            logger(f'     > execute command: {cmd}')
-            _runShellCmd(cmd, logger)
-            overviewStr = map(str, cogCfgDict["cogOverviews"])
-            overviewStr = ' '.join(overviewStr)
-            cmd = f'gdaladdo -ro --config GDAL_TIFF_OVR_BLOCKSIZE {cogCfgDict["blockSize"]} --config COMPRESS_OVERVIEW {cogCfgDict["compressionMethod"]} -r {bandInfo["resampleMethod"]} {tiffFile} {overviewStr}'
-            logger(f'     > execute command: {cmd}')
-            _runShellCmd(cmd, logger)
-            tempFileList.append(tiffFile+'.ovr')
+                if cogCfgDict["cogOverviews"]:
+                    logger('     > Adding overviews')
+                    cmd = f'gdaladdo -clean  {tiffFile}'
+                    logger(f'     > execute command: {cmd}')
+                    _runShellCmd(cmd, logger)
+                    overviewStr = map(str, cogCfgDict["cogOverviews"])
+                    overviewStr = ' '.join(overviewStr)
+                    cmd = f'gdaladdo -ro --config GDAL_CACHEMAX 265 --config GDAL_TIFF_OVR_BLOCKSIZE {cogCfgDict["blockSize"]} --config COMPRESS_OVERVIEW {cogCfgDict["compressionMethod"]} -r {bandInfo["resampleMethod"]} {tiffFile} {overviewStr}'
+                    logger(f'     > execute command: {cmd}')
+                    _runShellCmd(cmd, logger)
+                    tempFileList.append(tiffFile + '.ovr')
 
-        logger('     > Converting attributes to metadata')
-        metadataDict = _convertFileAttributes(attributeDict, cogCfgDict['attributeConversion'], cogFile)
-        bandMetadataDict = _convertBandAttributes(bandInfo['attributes'], cogCfgDict['attributeConversion'])
+                logger('     > Converting attributes to metadata')
+                metadataDict = _convertFileAttributes(attributeDict, cogCfgDict['attributeConversion'], cogFile)
+                bandMetadataDict = _convertBandAttributes(bandInfo['attributes'], cogCfgDict['attributeConversion'])
 
-        logger('     > Setting metadata')
-        ds = gdal.Open(tiffFile, gdal.GA_Update)
-        ds.SetMetadata(metadataDict)
-        ds.GetRasterBand(1).SetMetadata(bandMetadataDict)
-        ds.GetRasterBand(1).SetDescription(bandInfo['description'])
-        ds = None
+                logger('     > Setting metadata')
+                ds = gdal.Open(tiffFile, gdal.GA_Update)
+                ds.SetMetadata(metadataDict)
+                if timeDimensionInfo:
+                    for index, timeBandDescription in enumerate(timeDimensionInfo['timeBandDescriptionList']):
+                        ds.GetRasterBand(index+1).SetMetadata(bandMetadataDict)
+                        ds.GetRasterBand(index+1).SetDescription(timeBandDescription)
+                else:
+                    ds.GetRasterBand(1).SetMetadata(bandMetadataDict)
+                    ds.GetRasterBand(1).SetDescription(bandInfo['description'])
+                ds = None
 
-        logger('     > Creating final COG')
-        cogTmpFile = tempBasePath + '.tmp.tiff'
-        cmd =  f'gdal_translate -of COG '
-        cmd += f'-co COMPRESS={cogCfgDict["compressionMethod"]} '
-        cmd += f'-co PREDICTOR=YES '
-        cmd += f'--config GDAL_TIFF_OVR_BLOCKSIZE {cogCfgDict["blockSize"]} '
-        cmd += f'{tiffFile} {cogTmpFile}'
-        logger(f'     > execute command: {cmd}')
-        _runShellCmd(cmd, logger)
+                logger('     > Creating final COG')
+                cogTmpFile = tempBasePath + '.tmp.tiff'
+                cmd = f'gdal_translate -of COG --config GDAL_CACHEMAX 265 '
+                cmd += f'-co COMPRESS={cogCfgDict["compressionMethod"]} '
+                cmd += f'-co BLOCKSIZE={cogCfgDict["blockSize"]} '
+                if 'bigtiff' in cogCfgDict and cogCfgDict['bigtiff']:
+                    cmd += f'-co BIGTIFF=YES '
+                cmd += f'--config GDAL_TIFF_OVR_BLOCKSIZE {cogCfgDict["blockSize"]} '
+                cmd += f'{tiffFile} {cogTmpFile}'
+                logger(f'     > execute command: {cmd}')
+                _runShellCmd(cmd, logger)
 
-        logger(f'     > Moving to final location: {cogPath}')
-        _safeMove(cogTmpFile, cogPath)
-        
-    logger(f' > Removing temp files from {cogCfgDict["tmpFolder"]}')
-    for tempFile in tempFileList:
-        os.remove(tempFile)
+                logger(f'     > Moving to final location: {cogPath}')
+                _safeMove(cogTmpFile, cogPath)
+            
+                logger(f' > Removing temp files from {cogCfgDict["tmpFolder"]}')
+                for tempFile in tempFileList:
+                    os.remove(tempFile)
+                fileNr += 1
+        if dwnldFile:
+            logger(
+                f' > Removing downloaded file {os.path.basename(dwnldFile)} from {cogCfgDict["tmpFolder"]}'
+            )
+            os.remove(dwnldFile)
+        logger('COG Processing kernel finished')
+    except Exception as e:
+        raise e
+    finally:
+        if tmpFolder:
+            tmpFolder.cleanup()
 
 
 def createCogFileName(inFile, inBand, outBand = None, hasTimeIndex = False):
@@ -219,9 +310,30 @@ def createCogFileName(inFile, inBand, outBand = None, hasTimeIndex = False):
     return cogFile
 
 
-def _safeMakeDirs(directory, mode=0o777, attempts = 3):
-    """ create a directory on the cluster, safeguarding multiple servers doing the same
-    
+def updateProductDate(cogFile, timestamp):
+    """Update the product date with the timestamp.
+
+    Parameters
+    ----------
+    cogFile : str
+        Base file name of COG input file
+    timestamp : str
+        Time stamp in <HHMM> format
+
+    Returns
+    -------
+    str
+        CGLS compatible update COG file name
+    """
+    parts = cogFile.split('_')
+    parts[3] = parts[3][0:8] + str(timestamp)
+    outFile = '_'.join(parts)
+    return outFile
+
+
+def _safeMakeDirs(directory, mode=0o775, attempts=3):
+    """create a directory on the cluster, safeguarding multiple servers doing the same
+
     Parameters
     ----------
     directory : str
@@ -242,30 +354,10 @@ def _safeMakeDirs(directory, mode=0o777, attempts = 3):
         except:
             if attempts == 1:
                 raise
-            time.sleep(random.uniform(0.1,5.0))
+            time.sleep(random.uniform(0.1, 5.0))
             if os.path.isdir(directory):
-                 break
+                break
             attempts -= 1
-
-
-def _today(outFormat='%Y-%m-%d'):
-    """Get the system date in the desired format
-
-    Parameters
-    ----------
-    outFormat: str, optional
-        String representation of returned date, defaults to ISO '%Y-%m-%d'
-
-    Returns
-    -------
-    str
-        date
-
-    """
-    timestampFormat = '%Y-%m-%d %H:%M:%S.%f'
-    timestamp = datetime.now().strftime(timestampFormat)
-    date=strptime(timestamp,timestampFormat)
-    return strftime(outFormat,date)
 
 
 def _convertFileAttributes(attributeDict, conversionDict, filename):
@@ -291,13 +383,15 @@ def _convertFileAttributes(attributeDict, conversionDict, filename):
             continue
         if key == 'history':
             history = conversionDict['history']
-            history = history.replace('<processDateISO>', _today())
+            history = history.replace('<processDateISO>', datetime.now().strftime('%Y-%m-%d'))
             history = history.replace('<version>', __version__)
             metadata[key] = value + f'\n{history}'
         elif key == 'identifier':
-            id = os.path.splitext(filename)[0]
-            id = id.replace('c_gls_', '')
-            metadata[key] = f'{attributeDict["parent_identifier"]}:{id}'
+            fileId = os.path.splitext(filename)[0]
+            fileId = fileId.replace('c_gls_', '')
+            parentIdParts = attributeDict['identifier'].split(':')
+            parentId = ':'.join(parentIdParts[:-1])  # all but the NetCDF file id
+            metadata[key] = f'{parentId}:{fileId}'
         else:
             metadata[key] = value
     return metadata
@@ -348,7 +442,9 @@ def _runShellCmd(cmd, logger):
     None
     """
     try:
+        startTime = time()
         output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        elapsedTime = time() - startTime
     except subprocess.CalledProcessError as e:
         logger('     Failed!')
         logger('     Process output:')
@@ -358,7 +454,7 @@ def _runShellCmd(cmd, logger):
         logger('     +-')
         raise e
 
-    logger('     Done.')
+    logger(f'     Done in {strftime("%H:%M:%S", gmtime(elapsedTime))}')
     logger('     Process output:')
     logger('     +-')
     for line in output.splitlines():
@@ -465,12 +561,12 @@ def _safeMove(src, dst, mod = 0o644):
 # --- Python main entry --------------------------------------------------------
 if __name__ == '__main__':
     """ Imports that are only relevant in stand alone """
-    import sys
+    import argparse
     import json
     import logging
-    import argparse
+    import sys
     import traceback
-    from time import time, gmtime
+    from time import gmtime, time
     
     """ Ancillary functions that are only relevant to stand alone """
     def _getLogger(logName, logFile=None, consoleLogLevel=logging.INFO):
@@ -508,9 +604,7 @@ if __name__ == '__main__':
 
         consoleHandler = logging.StreamHandler()
         consoleHandler.setLevel(consoleLogLevel)
-        consoleFormatter = logging.Formatter(
-            '%(levelname)-8s %(message)s',
-            '')
+        consoleFormatter = logging.Formatter('%(levelname)-8s %(message)s', '')
         consoleHandler.setFormatter(consoleFormatter)
         logger.addHandler(consoleHandler)
 
@@ -528,7 +622,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--tmpFolder', type=str, required=False, default=None,
                         help='Optional full path to folder to store temporary files created during COG generation. Overrules the one specified in the configuration file')
     parser.add_argument('-l', '--logFile', type=str, required=False, default=None,
-                        help='Optional log file, overrules the one specified in the configuration file')
+                        help='Optional log file')
     modeGrp = parser.add_mutually_exclusive_group()
     modeGrp.add_argument('-q', '--quiet', action='store_true', help='Suppress output')
     modeGrp.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
@@ -540,9 +634,7 @@ if __name__ == '__main__':
         cfgDict = json.load(cfgFile)
     cfgDict['inFile'] = args.inFile
     cfgDict['outFolder'] = args.outFolder
-
-    if args.logFile:
-        cfgDict['logFile'] = args.logFile
+    cfgDict['logFile'] = args.logFile
 
     # setup logger
     if cfgDict['logFile']:
@@ -564,6 +656,8 @@ if __name__ == '__main__':
 
     if args.tmpFolder:
         cfgDict['tmpFolder'] = args.tmpFolder
+    elif 'tmpFolder' not in cfgDict:
+        cfgDict['tmpFolder'] = None
     try:
         logger.info(f'Processing {os.path.basename(cfgDict["inFile"])}')
         startTime = time()
