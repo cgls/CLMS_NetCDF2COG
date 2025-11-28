@@ -217,7 +217,7 @@ def cogProcessor(cogCfgDict, logger = print):
 
                 if cogCfgDict["cogOverviews"]:
                     logger('     > Adding overviews')
-                    cmd = f'gdaladdo -clean  {tiffFile}'
+                    cmd = f'gdaladdo -clean --config GDAL_CACHEMAX 265 {tiffFile}'
                     logger(f'     > execute command: {cmd}')
                     _runShellCmd(cmd, logger)
                     overviewStr = map(str, cogCfgDict["cogOverviews"])
