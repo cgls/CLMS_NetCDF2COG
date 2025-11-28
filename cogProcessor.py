@@ -53,8 +53,8 @@ The script can be called as follows:
  
 """
 __label__ = 'CLMS_NetCDF2COG'
-__version__ = '1.1.1'
-__date__ = '20250527'
+__version__ = '1.1.2'
+__date__ = '20251128'
 
 # Regular imports
 import os
